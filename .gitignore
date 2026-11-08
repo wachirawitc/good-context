@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Skill eval runs (generated output from good-context/evals)
+good-context-workspace/
+
+# Secrets (fixtures ship only .env.example)
+.env
+.env.*
+!.env.example
+
+# Copybara local tooling
+copybara_deploy.jar
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+.vs/

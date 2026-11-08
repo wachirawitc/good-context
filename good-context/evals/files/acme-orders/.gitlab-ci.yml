@@ -1,0 +1,23 @@
+stages: [test, deploy]
+
+test:
+  stage: test
+  image: node:20
+  script:
+    - corepack enable
+    - pnpm install --frozen-lockfile
+    - pnpm lint:js
+    - pnpm test
+
+deploy:staging:
+  stage: deploy
+  script:
+    - ./ci/deploy.sh staging
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+deploy:production:
+  stage: deploy
+  script:
+    - ./ci/deploy.sh production
+  when: manual

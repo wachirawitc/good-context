@@ -1,0 +1,17 @@
+# Worker service
+
+Background job processor for order events. It consumes the `orders` BullMQ queue on Redis (`REDIS_URL`; see `.env.example` at the repo root).
+
+## Commands (run from the repo root)
+
+- `pnpm --filter @acme/worker dev` - start with hot reload; needs Redis (`docker compose up -d redis`)
+- `pnpm --filter @acme/worker test` - unit tests (Vitest); they must pass before you finish
+
+## Conventions
+
+- Handlers must be idempotent: after a crash BullMQ may deliver a job twice, so check `processedEvents` before any side effect.
+- Add a new handler in `src/handlers/`, then register it in `src/index.ts`.
+
+## Ask first
+
+- Before changing retry or backoff settings in `src/queue.ts`: on-call alerting is tuned to them.

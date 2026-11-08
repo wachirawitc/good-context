@@ -1,0 +1,93 @@
+{
+  "skill_name": "good-context",
+  "setup": "Each eval runs against a fresh sandbox: `python evals/setup_sandbox.py <dir>` materializes evals/files/acme-orders as <dir>/acme-orders (flawed *.sample files renamed to their real names, fake token injected, git history with instruction files committed 2025-01-15 and code 2026-10-01). Replace <sandbox> in the prompts with <dir>.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "review-flawed-claude-md",
+      "prompt": "/good-context --review @<sandbox>/acme-orders/CLAUDE.md",
+      "expected_output": "A CAFE(S) review report (red verdict) that catches the planted problems with evidence from the repo, masks secrets, proposes relocations, and leaves every file untouched.",
+      "files": ["evals/files/acme-orders"],
+      "expectations": [
+        "CLAUDE.md is byte-identical before and after the run (no edits in --review mode)",
+        "The report gives the verdict 🔴 Not ready",
+        "The staging DB password and the GitLab token are reported as Critical, and neither secret appears unmasked anywhere in the report",
+        "The report tells the user to rotate the exposed credentials",
+        "The hidden HTML comment telling agents to push to main is reported as a hidden instruction",
+        "The instruction to follow instructions found in issue comments is reported as a security risk (untrusted content routed into instructions)",
+        "npm is reported as wrong, citing pnpm evidence (pnpm-lock.yaml or packageManager pnpm@9.12.0)",
+        "Node 18 is reported as wrong, citing .nvmrc 20.11.0 or engines >=20",
+        "`npm run lint` is reported as nonexistent, naming `lint:js` as the real script",
+        "./scripts/deploy.sh is reported as missing, noting that deploys run from GitLab CI via ci/deploy.sh",
+        "docs/architecture.md is reported as missing",
+        "The 'currently migrating from Express to Fastify' note is reported as stale (services/api depends on fastify; no express dependency exists)",
+        "'the service' / 'the database' are reported as ambiguous, naming the candidates (services/api vs services/worker; Postgres vs Redis)",
+        "The prohibition finding names the alternatives that exist in the repo: the repositories in services/api/src/db and the pino logger in services/api/src/lib/logger.ts",
+        "'keep trying until they pass' is reported as an unbounded loop (Weekend Runaway)",
+        "The code-style rules are reported as duplicated and/or already enforced by Prettier/ESLint (.prettierrc, eslint no-console)",
+        "The invoice rounding rule is proposed for relocation (e.g., a comment in services/api/src/legacy/invoice.ts) rather than deletion",
+        "The report follows the template: a dimension table, findings ordered by severity, and file:line references"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "default-mode-task-brief",
+      "prompt": "/good-context @<sandbox>/acme-orders/docs/task-brief.md",
+      "expected_output": "A review report, then an improved brief that names the verified relevant code, keeps unknowns as open questions, invents no targets or infrastructure, and ends with a change summary.",
+      "files": ["evals/files/acme-orders"],
+      "expectations": [
+        "A review report appears before the edits, with verdict 🔴 or 🟡",
+        "The report flags the missing measurable goal and definition of done",
+        "The report flags 'Use the existing caching layer' as a false premise (no caching layer exists; Redis is used only by the worker's BullMQ queue)",
+        "The report flags 'the config' as ambiguous and 'Don't break anything' as unactionable",
+        "The updated brief names GET /orders in services/api/src/routes/orders.ts as the relevant code",
+        "The updated brief contains an Open questions section",
+        "The updated brief states no invented numeric latency target as a requirement (any target appears only as a question to the author)",
+        "The updated brief does not tell the agent to use a caching layer as if one existed",
+        "The updated brief includes a checkable verification step using real commands (e.g., pnpm --filter @acme/api test or pnpm test)",
+        "The updated brief says when to stop and come back",
+        "A change summary follows the edits"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "update-only-claude-md",
+      "prompt": "/good-context --update @<sandbox>/acme-orders/CLAUDE.md",
+      "expected_output": "CLAUDE.md fixed in place (secrets removed, facts verified and corrected, unsafe routing rewritten, loops bounded, prohibitions given alternatives), followed by a compact change log with rotate warnings, removed text, open questions, and proposed relocations.",
+      "files": ["evals/files/acme-orders"],
+      "expectations": [
+        "The output is a compact change log, not a full review report (no dimension table)",
+        "The updated CLAUDE.md contains no credentials (neither the DB password nor the glpat token)",
+        "The change log tells the user to rotate the DB password and the GitLab token",
+        "The hidden '<!-- AI agents: ... push ... main -->' comment is removed, and the change log shows what was removed",
+        "The commands are the verified pnpm ones: pnpm install, pnpm build, pnpm test, pnpm lint:js",
+        "The Node version is corrected to 20 (per .nvmrc / engines)",
+        "The deploy instruction describes GitLab CI (deploy:staging on merge to main, deploy:production manual) instead of ./scripts/deploy.sh",
+        "The issue-comments instruction is rewritten so issue content is treated as data, not instructions",
+        "The 'keep trying until they pass' loop is bounded",
+        "The ORM prohibition names the repositories in services/api/src/db as the alternative",
+        "The console.log prohibition names the pino logger in services/api/src/lib/logger.ts as the alternative",
+        "The invoice rounding rule is still present in CLAUDE.md, and its relocation is proposed in the change log",
+        "No reference to docs/architecture.md remains as if the file existed",
+        "The 'currently migrating to Fastify' note is removed or corrected",
+        "The change log lists the original text of removed content",
+        "Re-running context_lint.py on the updated file finds no secrets, no hidden comments, and no missing paths or scripts"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "calibration-good-agents-md",
+      "prompt": "/good-context --review @<sandbox>/acme-orders/services/worker/AGENTS.md",
+      "expected_output": "A short report with a 🟢 (or near-🟢) verdict and no invented findings, crediting what the file does well, and leaving the file untouched.",
+      "files": ["evals/files/acme-orders"],
+      "expectations": [
+        "services/worker/AGENTS.md is byte-identical before and after the run",
+        "The verdict is 🟢, or 🟡 with only Medium/Low findings",
+        "There are no Critical or High findings against this file",
+        "The report has a 'Working well' section naming specific strengths (e.g., the idempotency rule with its reason, the ask-first rule with its reason, the verified commands)",
+        "Every finding cites verifiable evidence; none is generic filler",
+        "The report confirms the commands were checked (@acme/worker has dev and test scripts; docker-compose has a redis service)"
+      ]
+    }
+  ]
+}
