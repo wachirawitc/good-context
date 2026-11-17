@@ -1,0 +1,7 @@
+# Lint config for the skill's Python scripts (standard library only, Python 3.8+).
+target-version = "py38"
+line-length = 120
+extend-exclude = ["good-context/evals/files"]
+
+[lint]
+select = ["E", "F", "W", "B", "UP", "I"]

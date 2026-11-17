@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.ruff_cache/
 
 # Skill eval runs (generated output from good-context/evals)
 good-context-workspace/

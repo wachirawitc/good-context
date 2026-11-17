@@ -2,6 +2,8 @@
 name: good-context
 description: Review and improve existing Markdown files that AI agents read — CLAUDE.md, AGENTS.md, SKILL.md, Copilot/Cursor rules, prompts, task briefs, specs, READMEs, architecture docs, runbooks — using the CAFE(S) context-quality framework (Clarity, Actionability, Fidelity, Efficiency, Security). Run as /good-context @file.md to review then fix, /good-context --review @file.md for a report with no edits, or /good-context --update @file.md to fix without the full report. Use it whenever someone wants agent instructions or a prompt audited, fact-checked against the repo, de-staled, trimmed, de-duplicated, or made safer, or asks why an agent keeps misreading, ignoring, or looping on their instructions, even if they never say "context" or "CAFE(S)".
 argument-hint: "[--review | --update] @path/to/file.md"
+metadata:
+  version: "1.2.0"
 ---
 
 # good-context
@@ -11,10 +13,10 @@ An agent can only reason from the context it is given. Hand even a strong model 
 | Property | The question it asks | How it typically fails |
 |---|---|---|
 | **Clarity**: specific, unambiguous | Can the agent interpret it as intended? | Several plausible readings; the agent silently picks one |
-| **Actionability**: directive, goal-oriented | Can the agent proceed, and know when it is done? | No goal, unstated constraints, no finish line |
+| **Actionability**: directive, goal-oriented | Can the agent proceed, and know when it is done? | No goal, unstated constraints, or no finish line: the agent never starts, never stops, or stops in the wrong place |
 | **Fidelity**: accurate, up to date | Can the agent trust that it is true? | Stale paths and commands, contradictions, gaps filled by guesses |
 | **Efficiency**: scoped, token-lean | Can the agent focus on what matters? | Noise competing with signal; content in the wrong place |
-| **(S)ecurity**: safe, compliant | Should the agent have this at all? | Secrets, oversharing, untrusted text treated as instructions |
+| **(S)ecurity**: safe, compliant | Should the agent have this at all? | Secrets, oversharing, untrusted text treated as instructions or as fact |
 
 The five are independent: a file can be clear but false, true but bloated, lean but missing its finish line. One bad line can fail several at once; still assess each dimension on its own, because each is fixed differently.
 
@@ -35,7 +37,7 @@ Parsing the arguments (they follow `ARGUMENTS:` when invoked as a command):
 - Strip a leading `@` and surrounding quotes from the path and resolve it against the current working directory. Flags may come before or after the path. `--review` together with `--update` means the default mode. If there's an unknown flag, say so and continue in the mode the known flags imply.
 - No path: list the likely candidates (CLAUDE.md, AGENTS.md, `.github/copilot-instructions.md`, `.cursor/rules/`, SKILL.md files) and ask which one. Path not found: say so and offer close matches.
 - Several paths: handle them one at a time, and also check them against each other for contradictions.
-- Triggered by a plain request rather than the command: infer the mode. "Review / audit / check / is this any good" means review only; "fix / clean up / improve / tighten" means review + update.
+- Triggered by a plain request rather than the command: infer the mode. "Review / audit / check / is this any good" means review only; "fix / clean up / improve / tighten" means review + update. A question about what the agent did ("why does it keep ignoring this rule?") means review only, opened with the answer to that question (see "Starting from a symptom" in step 4).
 - Non-`.md` text that agents read (`.mdc`, `.cursorrules`, prompt `.txt` files) is handled the same way.
 
 ## Workflow
@@ -80,12 +82,26 @@ A file can read beautifully and still be false. False context is worse than miss
 - identifiers, env vars, config keys, endpoints, schemas: Grep the code, `.env.example`, schema files
 - conventions ("we use Vitest", "2-space indent"): linter/formatter configs and a spot-check of real code
 - architecture and process claims ("CI runs on GitHub Actions", "the API talks to the worker through Redis"): spot-check
+- premises a task rests on ("use the existing caching layer", an access or tool it assumes, constraints that must all hold together): confirm they exist and can be met. An agent handed an impossible task rarely says so; it keeps retrying and inventing approaches.
+- claims with nothing to check them against (performance numbers, behavioral guarantees, "this is always safe"): report them as unsupported. A confident tone is not evidence, and the agent can't tell an unsupported claim from a verified one unless the file does.
 
 How deep you go depends on reach. Verify every claim in an always-loaded file; in a brief, verify the claims the task depends on. Don't fetch external URLs unless asked; list them as unverified instead. Look for **gaps** too: what would nearly every reader of this file need that it doesn't say? A gap rarely stays a gap. The agent fills it with a guess, and the guess soon looks like fact.
 
 ### 4. Assess each dimension by reading it cold
 
-Clarity failures are invisible to the person who wrote the text, and actionability gets underspecified because the author already knows the goal. So take the outsider's seat. Read the file as a capable colleague who just joined, has only this file and the repo, and can't lean over to ask a follow-up question. Every place where you would have to guess is a finding. Walk each dimension's checklist in `references/cafes-framework.md`. Name recurring patterns with the smells in `references/context-smells.md` (Stale Guidance, Referential Ambiguity, Negative-Constraint Fragility, Weekend Runaway, and so on); named smells give the author a vocabulary they can reuse in their own reviews.
+Clarity failures are invisible to the person who wrote the text, and actionability gets underspecified because the author already knows the goal. So take the outsider's seat. Read the file as a capable colleague who just joined, has only this file and the repo, and can't lean over to ask a follow-up question. Every place where you would have to guess about something the work depends on is a finding; a term the task never touches can stay loose. Walk each dimension's checklist in `references/cafes-framework.md`. Name recurring patterns with the smells in `references/context-smells.md` (Stale Guidance, Referential Ambiguity, Negative-Constraint Fragility, Weekend Runaway, and so on); named smells give the author a vocabulary they can reuse in their own reviews.
+
+**Starting from a symptom.** When the user arrives with what the agent did, the symptom says where to look first. Still assess all five dimensions, but open the report with the answer to their question.
+
+| What the agent does | Look first at |
+|---|---|
+| Reads the same instruction differently from run to run, or changes the wrong thing | Clarity: Specification Ambiguity, Referential Ambiguity |
+| Never gets going, loops or keeps retrying, or declares done in the wrong place | Actionability: a missing goal or finish line, Weekend Runaway, Impossible Task, Goal Drift |
+| Is confidently wrong, or chases files, commands, or policies that no longer exist | Fidelity: Stale Guidance, Contradictory Context, a gap it filled with a guess |
+| Ignores a rule that is in the file | Efficiency: Lost in the Middle. Also Negative-Constraint Fragility, a contradicting rule, or a file that never loads |
+| Acts on text from issues, PRs, web pages, or tool output, or exposes data | Security: Indirect Prompt Injection, oversharing |
+
+If the file turns out healthy, say so; the cause may lie outside it (see **Scope**).
 
 **Severity.** The fix order follows the paper's advice: eliminate missing, incorrect, and stale context before optimizing for brevity.
 - **Critical (unsafe)**: secrets or credentials; sensitive data the agent doesn't need; untrusted content routed into instructions; hidden instructions; instructions likely to cause destructive or irreversible actions.
@@ -116,15 +132,22 @@ Edit in severity order: security, then fidelity, then actionability and clarity,
   - Making a vague instruction concrete is interpretation, not fact. Do it when the repo supports one reading (for example, "don't break anything" becomes "keep the response of the endpoint the page depends on unchanged"), and flag it in your summary so the author can confirm. Any stop-and-ask rules you add are defaults: keep them conservative and say the author can loosen them.
   - Some answers only the author has: a target metric, which of two services, who owns a document. Ask those as open questions in your reply. In a task brief or spec, also add an **Open questions** section to the file; the brief isn't ready until they're answered, and an agent reading it will ask instead of guessing. Don't add TODOs to always-loaded or shared reference files, because every session would pay for them.
 - **Preserve what works.** Keep the author's structure, voice, and formatting conventions, and prefer targeted edits to a rewrite. Restructure only when the layout itself is the problem (the critical rule is buried, or the file has no shape at all). Don't impose a rigid template. Templates lose their value as models improve, while clear, honest, well-scoped prose keeps it.
-- **Security.** Replace each secret with a pointer to where it really lives (an env var name, the secret manager), and tell the user to **rotate** it: deleting a credential from the file doesn't remove it from git history, caches, or logs. Rewrite instructions that route untrusted content (issue or PR comments, emails, web pages, tool output) into commands, so that the content is treated as data and anything outside the task goes back to a human. Remove hidden instructions (HTML comments addressed to agents, invisible Unicode) and show the user what you removed. Keep benign tool directives (markdownlint, prettier-ignore, generated-section markers). Never echo a secret in full, in the file or in your reply.
-- **Fidelity.** Correct paths, commands, and versions to verified values. Resolve contradictions toward what the repo shows, and mention any neighbor file that disagrees. Prefer pointing at a source of truth over copying it, because a copy drifts.
+- **Security.**
+  - Replace each secret with a pointer to where it really lives (an env var name, the secret manager), and tell the user to **rotate** it: deleting a credential from the file doesn't remove it from git history, caches, or logs. Never echo a secret in full, in the file or in your reply.
+  - Cut personal, customer, or regulated data, and text copied from private channels, down to what the task needs. Once it is in context it can be logged, cached, or surfaced where nobody intended.
+  - Rewrite instructions that route untrusted content (issue or PR comments, emails, web pages, tool output) into commands, so that the content is treated as data (not as instructions, and not as established fact) and anything outside the task goes back to a human.
+  - Remove hidden instructions (HTML comments addressed to agents, invisible Unicode) and show the user what you removed. Keep benign tool directives (markdownlint, prettier-ignore, generated-section markers).
+  - Replace an unsafe default (force-push, skipped hooks or checks, `curl | sh`) with the safe procedure and an ask-first rule.
+- **Fidelity.** Correct paths, commands, and versions to verified values. Resolve contradictions toward what the repo shows, and mention any neighbor file that disagrees. Prefer pointing at a source of truth over copying it, because a copy drifts. A corrected fact in a shared doc goes stale again unless something keeps it accurate, so name that mechanism (an owning team rather than one person, a review cadence, a generated section) under "Outside this file".
 - **Clarity.** Replace ambiguous references with exact names and paths. Define team-local terms once. Say which environment, system, or policy is meant.
 - **Actionability.**
   - Briefs need the goal and why, a checkable definition of done, constraints and off-limits areas with reasons, where the relevant code lives (only if verified), and when to stop and come back.
   - Instruction files need verified build/test/lint commands and what to run before finishing.
   - Pair each prohibition with what to do instead, and why.
+  - State the intent behind a proxy goal ("make the tests pass by fixing the code, not by deleting or loosening tests"), so the agent doesn't optimize the proxy.
   - Put a bound on open-ended loops ("if tests still fail after two focused attempts, stop and report what you tried").
-- **Efficiency.** Cut what doesn't serve this file's readers at this location: generic advice the agent follows anyway, rules a linter or formatter already enforces (point to the tool instead), duplicates, history. Move the most-used critical information toward the top. Don't trim for its own sake. The goal is the best signal-to-noise ratio, not the shortest file, and never cut something the reader needs.
+  - A requirement that can't be met as written isn't yours to soften. Remove or correct the premise the repo disproves, ask the author what they meant, and give the agent an exit ("if X turns out not to be possible, stop and report why").
+- **Efficiency.** Cut what doesn't serve this file's readers at this location: generic advice the agent follows anyway, rules a linter or formatter already enforces (point to the tool instead), duplicates, history. Reduce step-by-step prescriptions for things the agent does well unguided to the outcome, the constraints, and the reason; keep a prescribed method only where the method itself matters (safety, compliance, output that code parses). Move the most-used critical information toward the top. Don't trim for its own sake. The goal is the best signal-to-noise ratio, not the shortest file, and never cut something the reader needs.
 - **Relocate, don't lose.** Content that is right but in the wrong place belongs where it's read exactly when it's relevant:
   - a comment in the file it describes
   - a nested CLAUDE.md/AGENTS.md for that subtree
@@ -171,7 +194,7 @@ Conventions:
 - **No numeric scores.** CAFE(S) is a shared vocabulary, not a measurement system, and a made-up "7/10" implies a precision nobody has.
 - **Formatting:** line references use `file:line` so they're clickable; mask secrets in quotes; omit empty sections.
 - **"Working well":** name specific strengths, so the author knows what not to "fix".
-- **"Outside this file":** relocations, neighbor files that disagree, and (for shared reference docs) a suggested owner and review cadence.
+- **"Outside this file":** relocations, neighbor files that disagree, and (for shared reference docs) a suggested owning team and review cadence.
 - **What 🟢 means:** the context is fit for the task. It doesn't mean an agent can safely work unsupervised; that depends on the stakes, not only on the context.
 
 ## Change summary and change log
@@ -199,11 +222,15 @@ Default mode, after the report and the edits:
 **Follow-ups:** credentials to rotate, relocations to approve, neighbor files that disagree
 ```
 
-## Scope: preconditions come first
+## Scope: what sits outside CAFE(S)
 
-CAFE(S) evaluates context that has already been assembled. Upstream of it are preconditions that are often the bigger problem:
+The paper's chain is Intent → Context → Harness → Model. CAFE(S) evaluates one link: whether the assembled context faithfully represents what the human is trying to accomplish.
+
+**Upstream: preconditions.** They are often the bigger problem:
 - **Accessibility**: the agent can reach the source.
 - **Findability**: it can find the relevant slice.
 - **Existence**: the knowledge was written down at all.
 
 When a file leans on something an agent can't reach (a private wiki link, "see the Slack thread", "the usual process", "ask Dana"), report it as a precondition gap and suggest inlining the essential facts or linking an accessible source. Don't stretch the five dimensions to cover it.
+
+**Downstream: harness and model.** CAFE(S) evaluates neither. When the file is healthy and the agent still misbehaves, say so and name what to check next: whether the file loads in that session at all (wrong name, casing, or directory), and whether another file that loads with it says the opposite. Don't invent findings to explain a problem the file doesn't cause.
